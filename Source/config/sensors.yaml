@@ -1,0 +1,37 @@
+# Sensor configuration for the greenhouse monitoring system.
+# Loaded by the sensor simulator (client/) at startup.
+
+server:
+  host: 127.0.0.1
+  port: 9000          # TCP ingest port
+
+sensors:
+  - id: temp-gh1
+    type: temperature
+    interval_seconds: 5
+    location: "Greenhouse 1 - Zone A"
+    range: [15.0, 40.0]   # min/max for plausible generation
+
+  - id: humid-gh1
+    type: humidity
+    interval_seconds: 10
+    location: "Greenhouse 1 - Zone A"
+    range: [40.0, 95.0]
+
+  - id: soil-gh2
+    type: soil_moisture
+    interval_seconds: 15
+    location: "Greenhouse 2 - Bed 3"
+    range: [10.0, 80.0]
+
+  - id: light-gh2
+    type: light
+    interval_seconds: 8
+    location: "Greenhouse 2 - Roof"
+    range: [0.0, 100000.0]
+
+  - id: temp-gh3
+    type: temperature
+    interval_seconds: 6
+    location: "Greenhouse 3 - Main"
+    range: [18.0, 35.0]

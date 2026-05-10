@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GreenWatch · Live Telemetry</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,500;1,300&display=swap');
+
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --border:    #30363d;
+    --green:     #39d353;
+    --yellow:    #e3b341;
+    --blue:      #58a6ff;
+    --red:       #f85149;
+    --purple:    #bc8cff;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --font-mono: 'Space Mono', monospace;
+    --font-sans: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-weight: 300;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--green);
+  }
+  .logo span { color: var(--muted); font-weight: 400; }
+
+  #conn-status {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red);
+    transition: background .4s;
+  }
+  .dot.live { background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(57,211,83,.5); }
+    50%      { box-shadow: 0 0 0 5px rgba(57,211,83,0); }
+  }
+
+  /* ── Controls ── */
+  .controls {
+    padding: 16px 32px;
+    display: flex; gap: 12px; align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .controls label { font-size: .8rem; color: var(--muted); font-family: var(--font-mono); }
+  .controls input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    border-radius: 4px;
+    width: 200px;
+  }
+  .controls input:focus { outline: none; border-color: var(--green); }
+  button {
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 6px 16px;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background .2s;
+  }
+  button:hover { background: rgba(57,211,83,.1); }
+  .btn-clear { border-color: var(--muted); color: var(--muted); }
+  .btn-clear:hover { background: rgba(139,148,158,.1); }
+
+  /* ── Main grid ── */
+  main {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+    padding: 24px 32px;
+  }
+
+  /* ── Sensor card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color .3s;
+    animation: cardIn .35s ease both;
+  }
+  .card:hover { border-color: var(--blue); }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sensor-id {
+    font-family: var(--font-mono);
+    font-size: .82rem;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .sensor-type {
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .badge {
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    padding: 2px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  .card-body { padding: 14px 16px; }
+
+  /* ── Big value display ── */
+  .value-row {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 12px;
+  }
+  .value-big {
+    font-family: var(--font-mono);
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    transition: color .4s;
+  }
+  .value-unit { font-size: .9rem; color: var(--muted); }
+
+  /* ── Sparkline ── */
+  .sparkline-wrap { position: relative; height: 56px; }
+  canvas.sparkline { width: 100%; height: 56px; display: block; }
+
+  .ts {
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* ── Log panel ── */
+  #log-panel {
+    margin: 0 32px 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .log-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #log-output {
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    color: var(--green);
+    padding: 10px 16px;
+    height: 130px;
+    overflow-y: auto;
+    background: #080c11;
+    line-height: 1.7;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .log-ts { color: var(--muted); }
+  .log-id { color: var(--blue); }
+
+  /* ── Empty state ── */
+  #empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 0;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: .85rem;
+  }
+  #empty .emoji { font-size: 2.5rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GREEN<span>WATCH</span> · IoT Telemetry</div>
+  <div id="conn-status"><div class="dot" id="dot"></div><span id="status-text">Disconnected</span></div>
+</header>
+
+<div class="controls">
+  <label>WS HOST</label>
+  <input id="ws-url" value="ws://127.0.0.1:8765" />
+  <button id="btn-connect">Connect</button>
+  <button class="btn-clear" id="btn-clear">Clear</button>
+  <label style="margin-left:16px">Filter sensor IDs (comma-separated, blank = all)</label>
+  <input id="filter-input" value="" placeholder="e.g. temp-gh1, humid-gh1" style="width:260px"/>
+  <button id="btn-subscribe">Subscribe</button>
+</div>
+
+<main id="grid">
+  <div id="empty"><div class="emoji">🌿</div>Awaiting sensor data…</div>
+</main>
+
+<div id="log-panel">
+  <div class="log-header">
+    <span>RAW EVENT LOG</span>
+    <span id="msg-count">0 messages</span>
+  </div>
+  <div id="log-output"></div>
+</div>
+
+<script>
+const TYPE_COLOR = {
+  temperature:   '#f85149',
+  humidity:      '#58a6ff',
+  soil_moisture: '#39d353',
+  light:         '#e3b341',
+};
+function colorFor(type) { return TYPE_COLOR[type] || '#bc8cff'; }
+
+const sensors = {};         
+let ws = null;
+let msgCount = 0;
+const MAX_POINTS = 60;
+
+const grid      = document.getElementById('grid');
+const empty     = document.getElementById('empty');
+const dot       = document.getElementById('dot');
+const statusTxt = document.getElementById('status-text');
+const logOut    = document.getElementById('log-output');
+const countEl   = document.getElementById('msg-count');
+function connect() {
+  const url = document.getElementById('ws-url').value.trim();
+  if (ws) { ws.close(); }
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    dot.classList.add('live');
+    statusTxt.textContent = 'Live';
+    appendLog('system', 'Connected to ' + url);
+  };
+  ws.onclose = () => {
+    dot.classList.remove('live');
+    statusTxt.textContent = 'Disconnected';
+    appendLog('system', 'Connection closed');
+  };
+  ws.onerror = () => appendLog('system', 'WebSocket error');
+
+  ws.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    handleReading(data);
+  };
+}
+
+function subscribe() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const raw = document.getElementById('filter-input').value.trim();
+  const ids  = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  ws.send(JSON.stringify({ action: 'subscribe', sensors: ids }));
+  appendLog('system', ids.length ? 'Subscribed to: ' + ids.join(', ') : 'Subscribed to all sensors');
+}
+function handleReading(d) {
+  msgCount++;
+  countEl.textContent = msgCount + ' messages';
+  appendLog(d.sensor_id, d.type + ' = ' + d.value + ' ' + d.unit + '  @' + fmtTs(d.ts));
+
+  if (!sensors[d.sensor_id]) createCard(d);
+  updateCard(d);
+}
+function createCard(d) {
+  if (empty.parentNode) empty.remove();
+
+  const color = colorFor(d.type);
+  const card  = document.createElement('div');
+  card.className = 'card';
+  card.id = 'card-' + d.sensor_id;
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div>
+        <div class="sensor-id">${d.sensor_id}</div>
+        <div class="sensor-type">${d.type.replace('_',' ')}</div>
+      </div>
+      <div class="badge" style="background:${color}22;color:${color}">LIVE</div>
+    </div>
+    <div class="card-body">
+      <div class="value-row">
+        <div class="value-big" id="val-${d.sensor_id}" style="color:${color}">—</div>
+        <div class="value-unit">${d.unit}</div>
+      </div>
+      <div class="sparkline-wrap">
+        <canvas class="sparkline" id="spark-${d.sensor_id}"></canvas>
+      </div>
+      <div class="ts" id="ts-${d.sensor_id}">—</div>
+    </div>`;
+
+  grid.appendChild(card);
+
+  const canvas = document.getElementById('spark-' + d.sensor_id);
+  canvas.width  = canvas.offsetWidth  || 300;
+  canvas.height = 56;
+  const ctx = canvas.getContext('2d');
+
+  sensors[d.sensor_id] = {
+    readings: [],
+    canvas, ctx,
+    valueEl: document.getElementById('val-' + d.sensor_id),
+    tsEl:    document.getElementById('ts-'  + d.sensor_id),
+    color,
+    type: d.type,
+  };
+}
+function updateCard(d) {
+  const s = sensors[d.sensor_id];
+  s.readings.push({ v: d.value, ts: d.ts });
+  if (s.readings.length > MAX_POINTS) s.readings.shift();
+
+  s.valueEl.textContent = d.value.toFixed(1);
+  s.tsEl.textContent    = 'Last update: ' + fmtTs(d.ts);
+
+  drawSparkline(s);
+}
+function drawSparkline(s) {
+  const { canvas, ctx, readings, color } = s;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  if (readings.length < 2) return;
+
+  const vals = readings.map(r => r.v);
+  const mn   = Math.min(...vals);
+  const mx   = Math.max(...vals);
+  const rng  = mx - mn || 1;
+
+  const xStep = W / (readings.length - 1);
+  const py    = v => H - ((v - mn) / rng) * (H - 10) - 5;
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, color + '55');
+  grad.addColorStop(1, color + '00');
+  ctx.beginPath();
+  ctx.moveTo(0, py(vals[0]));
+  vals.forEach((v, i) => ctx.lineTo(i * xStep, py(v)));
+  ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(0, py(vals[0]));
+  vals.forEach((v, i) => ctx.lineTo(i * xStep, py(v)));
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  // Last point dot
+  const lx = (vals.length - 1) * xStep;
+  const ly = py(vals[vals.length - 1]);
+  ctx.beginPath();
+  ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+function appendLog(id, msg) {
+  const now = new Date().toTimeString().split(' ')[0];
+  logOut.innerHTML +=
+    `<div><span class="log-ts">${now} </span><span class="log-id">[${id}]</span> ${escHtml(msg)}</div>`;
+  logOut.scrollTop = logOut.scrollHeight;
+  // Keep log bounded
+  while (logOut.children.length > 200) logOut.removeChild(logOut.firstChild);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+function clearAll() {
+  Object.keys(sensors).forEach(id => {
+    const card = document.getElementById('card-' + id);
+    if (card) card.remove();
+  });
+  Object.keys(sensors).forEach(k => delete sensors[k]);
+  logOut.innerHTML = '';
+  msgCount = 0;
+  countEl.textContent = '0 messages';
+  if (!grid.children.length) grid.appendChild(empty);
+}
+document.getElementById('btn-connect').addEventListener('click', connect);
+document.getElementById('btn-subscribe').addEventListener('click', subscribe);
+document.getElementById('btn-clear').addEventListener('click', clearAll);
+
+// Auto-connect on load
+window.addEventListener('load', connect);
+</script>
+</body>
+</html>
